@@ -1,0 +1,44 @@
+{
+  "summary": {
+    "total_tests": 7,
+    "passed": 7,
+    "failed": 0,
+    "errors": 0,
+    "warnings": 0
+  },
+  "details": {
+    "dockerfile": {
+      "status": "pass",
+      "errors": 0,
+      "warnings": 0
+    },
+    "docker_compose": {
+      "status": "pass",
+      "services_found": 5,
+      "health_checks": 5
+    },
+    "nginx": {
+      "status": "pass",
+      "config_files": 2
+    },
+    "environment": {
+      "status": "pass",
+      "documented_vars": 11,
+      "total_required": 11
+    },
+    "django_settings": {
+      "status": "pass",
+      "files_found": 2
+    },
+    "gunicorn": {
+      "status": "pass",
+      "config_found": true
+    },
+    "entrypoint": {
+      "status": "pass",
+      "script_found": true
+    }
+  },
+  "errors": [],
+  "warnings": []
+}

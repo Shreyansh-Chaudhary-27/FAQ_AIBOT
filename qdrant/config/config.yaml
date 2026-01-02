@@ -1,0 +1,35 @@
+# Qdrant Configuration for Production FAQ/RAG Application
+
+log_level: INFO
+
+service:
+  http_port: 6333
+  grpc_port: 6334
+  enable_cors: true
+  max_request_size_mb: 32
+  max_workers: 0  # Auto-detect based on CPU cores
+
+storage:
+  # Storage backend configuration
+  storage_path: /qdrant/storage
+  
+  # Performance settings
+  performance:
+    max_search_threads: 0  # Auto-detect based on CPU cores
+    max_optimization_threads: 1
+  
+  # Quantization settings for memory efficiency
+  quantization:
+    always_ram: false
+  
+  # Write-ahead log settings
+  wal:
+    wal_capacity_mb: 32
+    wal_segments_ahead: 0
+
+# Cluster configuration (for future scaling)
+cluster:
+  enabled: false
+
+# Telemetry settings
+telemetry_disabled: true

@@ -1,0 +1,305 @@
+services:
+  # PostgreSQL Database
+  db:
+    image: postgres:15-alpine
+    container_name: faq_postgres
+    environment:
+      POSTGRES_DB: ${DB_NAME:-faq_production}
+      POSTGRES_USER: ${DB_USER:-faq_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+      # Performance optimizations
+      POSTGRES_SHARED_PRELOAD_LIBRARIES: "pg_stat_statements"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    # Only expose port in development - remove in production for security
+    ports:
+      - "${DB_EXTERNAL_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-faq_user} -d ${DB_NAME:-faq_production}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - backend
+    # Resource limits for production
+    deploy:
+      resources:
+        limits:
+          memory: ${DB_MEMORY_LIMIT:-512M}
+          cpus: '${DB_CPU_LIMIT:-0.5}'
+        reservations:
+          memory: ${DB_MEMORY_RESERVATION:-256M}
+          cpus: '${DB_CPU_RESERVATION:-0.25}'
+
+  # Qdrant Vector Database
+  qdrant:
+    image: qdrant/qdrant:${QDRANT_VERSION:-latest}
+    container_name: faq_qdrant
+    ports:
+      - "${QDRANT_HTTP_PORT:-6333}:6333"
+      - "${QDRANT_GRPC_PORT:-6334}:6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
+      - ./qdrant/config:/qdrant/config:ro
+    environment:
+      QDRANT__SERVICE__HTTP_PORT: 6333
+      QDRANT__SERVICE__GRPC_PORT: 6334
+      QDRANT__LOG_LEVEL: ${QDRANT_LOG_LEVEL:-INFO}
+      # Performance optimizations
+      QDRANT__SERVICE__MAX_REQUEST_SIZE_MB: ${QDRANT_MAX_REQUEST_SIZE:-32}
+      QDRANT__STORAGE__PERFORMANCE__MAX_SEARCH_THREADS: ${QDRANT_MAX_SEARCH_THREADS:-0}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6333/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - backend
+    # Resource limits for production
+    deploy:
+      resources:
+        limits:
+          memory: ${QDRANT_MEMORY_LIMIT:-1G}
+          cpus: '${QDRANT_CPU_LIMIT:-1.0}'
+        reservations:
+          memory: ${QDRANT_MEMORY_RESERVATION:-512M}
+          cpus: '${QDRANT_CPU_RESERVATION:-0.5}'
+
+  # Redis Cache
+  redis:
+    image: redis:${REDIS_VERSION:-7-alpine}
+    container_name: faq_redis
+    ports:
+      - "${REDIS_EXTERNAL_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+      - ./redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
+    command: redis-server /usr/local/etc/redis/redis.conf
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - backend
+    # Resource limits for production
+    deploy:
+      resources:
+        limits:
+          memory: ${REDIS_MEMORY_LIMIT:-256M}
+          cpus: '${REDIS_CPU_LIMIT:-0.5}'
+        reservations:
+          memory: ${REDIS_MEMORY_RESERVATION:-128M}
+          cpus: '${REDIS_CPU_RESERVATION:-0.25}'
+
+  # Django Application
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+      args:
+        - BUILDKIT_INLINE_CACHE=1
+    container_name: faq_app
+    environment:
+      # Django Core Settings
+      SECRET_KEY: ${SECRET_KEY}
+      DJANGO_ENV: ${DJANGO_ENV:-production}
+      DEBUG: ${DEBUG:-False}
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1}
+      
+      # Database Configuration
+      DB_NAME: ${DB_NAME:-faq_production}
+      DB_USER: ${DB_USER:-faq_user}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_MAX_CONNECTIONS: ${DB_MAX_CONNECTIONS:-20}
+      DB_CONN_MAX_AGE: ${DB_CONN_MAX_AGE:-600}
+      
+      # Security Settings
+      SECURE_SSL_REDIRECT: ${SECURE_SSL_REDIRECT:-False}
+      SECURE_HSTS_SECONDS: ${SECURE_HSTS_SECONDS:-31536000}
+      CSRF_TRUSTED_ORIGINS: ${CSRF_TRUSTED_ORIGINS:-http://localhost:8000}
+      
+      # External Services
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      
+      # RAG Configuration
+      RAG_EMBEDDING_TYPE: ${RAG_EMBEDDING_TYPE:-local}
+      RAG_LOCAL_EMBEDDING_MODEL: ${RAG_LOCAL_EMBEDDING_MODEL:-all-MiniLM-L6-v2}
+      RAG_VECTOR_DIMENSION: ${RAG_VECTOR_DIMENSION:-384}
+      RAG_SIMILARITY_THRESHOLD: ${RAG_SIMILARITY_THRESHOLD:-0.5}
+      RAG_VECTOR_STORE_TYPE: ${RAG_VECTOR_STORE_TYPE:-qdrant}
+      
+      # Qdrant Configuration
+      QDRANT_HOST: qdrant
+      QDRANT_PORT: 6333
+      QDRANT_COLLECTION_NAME: ${QDRANT_COLLECTION_NAME:-faq_embeddings}
+      QDRANT_TIMEOUT: ${QDRANT_TIMEOUT:-30}
+      
+      # Cache Configuration
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      CACHE_TTL: ${CACHE_TTL:-3600}
+      
+      # Performance Settings
+      GUNICORN_WORKERS: ${GUNICORN_WORKERS:-4}
+      GUNICORN_WORKER_CLASS: ${GUNICORN_WORKER_CLASS:-sync}
+      GUNICORN_MAX_REQUESTS: ${GUNICORN_MAX_REQUESTS:-1000}
+      GUNICORN_MAX_REQUESTS_JITTER: ${GUNICORN_MAX_REQUESTS_JITTER:-100}
+      GUNICORN_TIMEOUT: ${GUNICORN_TIMEOUT:-30}
+      GUNICORN_LOG_LEVEL: ${GUNICORN_LOG_LEVEL:-info}
+      GUNICORN_WORKER_MEMORY_LIMIT: ${GUNICORN_WORKER_MEMORY_LIMIT:-536870912}
+      
+      # Superuser Creation (optional)
+      DJANGO_SUPERUSER_USERNAME: ${DJANGO_SUPERUSER_USERNAME:-}
+      DJANGO_SUPERUSER_EMAIL: ${DJANGO_SUPERUSER_EMAIL:-}
+      DJANGO_SUPERUSER_PASSWORD: ${DJANGO_SUPERUSER_PASSWORD:-}
+      
+      # Monitoring and Logging
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+    volumes:
+      - static_files:/app/staticfiles
+      - media_files:/app/mediafiles
+      - app_logs:/app/logs
+      - ./backups:/app/backups
+    ports:
+      - "${APP_EXTERNAL_PORT:-8000}:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+    networks:
+      - backend
+      - frontend
+    # Resource limits for production
+    deploy:
+      resources:
+        limits:
+          memory: ${APP_MEMORY_LIMIT:-1G}
+          cpus: '${APP_CPU_LIMIT:-1.0}'
+        reservations:
+          memory: ${APP_MEMORY_RESERVATION:-512M}
+          cpus: '${APP_CPU_RESERVATION:-0.5}'
+
+  # Nginx Reverse Proxy
+  nginx:
+    image: nginx:${NGINX_VERSION:-alpine}
+    container_name: faq_nginx
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - static_files:/app/staticfiles:ro
+      - media_files:/app/mediafiles:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - nginx_logs:/var/log/nginx
+    environment:
+      NGINX_WORKER_PROCESSES: ${NGINX_WORKER_PROCESSES:-auto}
+      NGINX_WORKER_CONNECTIONS: ${NGINX_WORKER_CONNECTIONS:-1024}
+      NGINX_CLIENT_MAX_BODY_SIZE: ${NGINX_CLIENT_MAX_BODY_SIZE:-10M}
+    depends_on:
+      app:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "nginx", "-t"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - frontend
+    # Resource limits for production
+    deploy:
+      resources:
+        limits:
+          memory: ${NGINX_MEMORY_LIMIT:-256M}
+          cpus: '${NGINX_CPU_LIMIT:-0.5}'
+        reservations:
+          memory: ${NGINX_MEMORY_RESERVATION:-128M}
+          cpus: '${NGINX_CPU_RESERVATION:-0.25}'
+
+volumes:
+  # Database volumes
+  postgres_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${POSTGRES_DATA_PATH:-./data/postgres}
+  
+  # Vector database volumes
+  qdrant_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${QDRANT_DATA_PATH:-./data/qdrant}
+  
+  # Cache volumes
+  redis_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${REDIS_DATA_PATH:-./data/redis}
+  
+  # Application volumes
+  static_files:
+    driver: local
+  media_files:
+    driver: local
+  app_logs:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${APP_LOGS_PATH:-./logs}
+  
+  # Nginx logs
+  nginx_logs:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${NGINX_LOGS_PATH:-./logs/nginx}
+
+networks:
+  # Frontend network for public-facing services
+  frontend:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: ${FRONTEND_SUBNET:-172.20.0.0/16}
+  
+  # Backend network for internal services
+  backend:
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+        - subnet: ${BACKEND_SUBNET:-172.21.0.0/16}

@@ -1,0 +1,53 @@
+{
+  "summary": {
+    "total_tests": 9,
+    "passed": 7,
+    "failed": 2,
+    "errors": 0,
+    "warnings": 1,
+    "success_rate": "77.8%"
+  },
+  "details": {
+    "Configuration Files": {
+      "status": "pass",
+      "details": "Test completed"
+    },
+    "Python Dependencies": {
+      "status": "pass",
+      "details": "Test completed"
+    },
+    "Django Settings": {
+      "status": "pass",
+      "details": "Test completed"
+    },
+    "Embedding System": {
+      "status": "fail",
+      "details": "Test completed"
+    },
+    "Health Endpoints": {
+      "status": "fail",
+      "details": "Test completed"
+    },
+    "Static Files Config": {
+      "status": "pass",
+      "details": "Test completed"
+    },
+    "Security Configuration": {
+      "status": "pass",
+      "details": "Test completed"
+    },
+    "Environment Variables": {
+      "status": "pass",
+      "details": "Test completed"
+    },
+    "Database Migrations": {
+      "status": "pass",
+      "details": "Test completed"
+    }
+  },
+  "errors": [],
+  "warnings": [
+    "Missing packages: django, gunicorn, psycopg2, redis, sentence-transformers, qdrant-client"
+  ],
+  "deployment_ready": false
+}

@@ -1,0 +1,101 @@
+{
+  "summary": {
+    "total_tests": 10,
+    "passed": 5,
+    "failed": 5,
+    "success_rate": 50.0,
+    "risk_score": 78.26086956521739
+  },
+  "severity_breakdown": {
+    "total": {
+      "low": 5,
+      "medium": 3,
+      "high": 1,
+      "critical": 1
+    },
+    "failed": {
+      "low": 0,
+      "medium": 3,
+      "high": 1,
+      "critical": 1
+    }
+  },
+  "test_results": [
+    {
+      "test_name": "Debug Mode Check",
+      "passed": false,
+      "details": "Debug information is exposed in error pages",
+      "severity": "critical",
+      "recommendation": "Set DEBUG = False in production settings"
+    },
+    {
+      "test_name": "Security Headers",
+      "passed": false,
+      "details": "Missing headers: X-XSS-Protection, Strict-Transport-Security, Content-Security-Policy",
+      "severity": "high",
+      "recommendation": "Configure security headers in Nginx and Django settings"
+    },
+    {
+      "test_name": "CSRF Protection",
+      "passed": true,
+      "details": "CSRF protection is active",
+      "severity": "low",
+      "recommendation": null
+    },
+    {
+      "test_name": "HTTPS Enforcement",
+      "passed": false,
+      "details": "No HTTPS enforcement detected",
+      "severity": "medium",
+      "recommendation": "Configure HTTPS and HSTS headers for production"
+    },
+    {
+      "test_name": "Admin Interface Security",
+      "passed": true,
+      "details": "Admin interface requires authentication",
+      "severity": "low",
+      "recommendation": null
+    },
+    {
+      "test_name": "Information Disclosure",
+      "passed": true,
+      "details": "No sensitive information disclosed",
+      "severity": "low",
+      "recommendation": null
+    },
+    {
+      "test_name": "SQL Injection Protection",
+      "passed": true,
+      "details": "No SQL injection vulnerabilities detected",
+      "severity": "low",
+      "recommendation": null
+    },
+    {
+      "test_name": "Rate Limiting",
+      "passed": false,
+      "details": "No rate limiting detected",
+      "severity": "medium",
+      "recommendation": "Implement rate limiting to prevent abuse"
+    },
+    {
+      "test_name": "Docker Security",
+      "passed": false,
+      "details": "Failed to check container user",
+      "severity": "medium",
+      "recommendation": null
+    },
+    {
+      "test_name": "Environment Variable Security",
+      "passed": true,
+      "details": "No sensitive environment variables exposed",
+      "severity": "low",
+      "recommendation": null
+    }
+  ],
+  "recommendations": [
+    "Set DEBUG = False in production settings",
+    "Configure security headers in Nginx and Django settings",
+    "Configure HTTPS and HSTS headers for production",
+    "Implement rate limiting to prevent abuse"
+  ]
+}

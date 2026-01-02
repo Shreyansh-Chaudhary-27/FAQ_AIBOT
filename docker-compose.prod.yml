@@ -1,0 +1,176 @@
+# Docker Compose Production Configuration
+# Use this file for production deployments: docker-compose -f docker-compose.yml -f docker-compose.prod.yml up
+
+services:
+  # Production PostgreSQL configuration
+  db:
+    # Don't expose database port externally in production
+    ports: []
+    environment:
+      # Use production database settings
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    # Enable resource limits in production
+    deploy:
+      resources:
+        limits:
+          memory: ${DB_MEMORY_LIMIT:-512M}
+          cpus: '${DB_CPU_LIMIT:-0.5}'
+        reservations:
+          memory: ${DB_MEMORY_RESERVATION:-256M}
+          cpus: '${DB_CPU_RESERVATION:-0.25}'
+      restart_policy:
+        condition: unless-stopped
+        delay: 5s
+        max_attempts: 3
+
+  # Production Qdrant configuration
+  qdrant:
+    # Don't expose ports externally in production (only internal access)
+    ports: []
+    environment:
+      QDRANT__LOG_LEVEL: ${QDRANT_LOG_LEVEL:-INFO}
+    # Enable resource limits in production
+    deploy:
+      resources:
+        limits:
+          memory: ${QDRANT_MEMORY_LIMIT:-1G}
+          cpus: '${QDRANT_CPU_LIMIT:-1.0}'
+        reservations:
+          memory: ${QDRANT_MEMORY_RESERVATION:-512M}
+          cpus: '${QDRANT_CPU_RESERVATION:-0.5}'
+      restart_policy:
+        condition: unless-stopped
+        delay: 5s
+        max_attempts: 3
+
+  # Production Redis configuration
+  redis:
+    # Don't expose port externally in production
+    ports: []
+    # Enable resource limits in production
+    deploy:
+      resources:
+        limits:
+          memory: ${REDIS_MEMORY_LIMIT:-256M}
+          cpus: '${REDIS_CPU_LIMIT:-0.5}'
+        reservations:
+          memory: ${REDIS_MEMORY_RESERVATION:-128M}
+          cpus: '${REDIS_CPU_RESERVATION:-0.25}'
+      restart_policy:
+        condition: unless-stopped
+        delay: 5s
+        max_attempts: 3
+
+  # Production Django app configuration
+  app:
+    build:
+      target: production
+      args:
+        - BUILDKIT_INLINE_CACHE=1
+    # Don't expose app port externally (only through nginx)
+    ports: []
+    environment:
+      # Production environment settings
+      DJANGO_ENV: production
+      DEBUG: "False"
+      
+      # Production Gunicorn settings
+      GUNICORN_WORKERS: ${GUNICORN_WORKERS:-8}
+      GUNICORN_WORKER_CLASS: ${GUNICORN_WORKER_CLASS:-sync}
+      GUNICORN_MAX_REQUESTS: ${GUNICORN_MAX_REQUESTS:-2000}
+      GUNICORN_MAX_REQUESTS_JITTER: ${GUNICORN_MAX_REQUESTS_JITTER:-200}
+      GUNICORN_TIMEOUT: ${GUNICORN_TIMEOUT:-60}
+      GUNICORN_LOG_LEVEL: ${GUNICORN_LOG_LEVEL:-info}
+      GUNICORN_WORKER_MEMORY_LIMIT: ${GUNICORN_WORKER_MEMORY_LIMIT:-1073741824}  # 1GB for production
+    # Enable resource limits in production
+    deploy:
+      resources:
+        limits:
+          memory: ${APP_MEMORY_LIMIT:-1G}
+          cpus: '${APP_CPU_LIMIT:-1.0}'
+        reservations:
+          memory: ${APP_MEMORY_RESERVATION:-512M}
+          cpus: '${APP_CPU_RESERVATION:-0.5}'
+      restart_policy:
+        condition: unless-stopped
+        delay: 10s
+        max_attempts: 3
+    # Production health checks with longer intervals
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health/"]
+      interval: 60s
+      timeout: 15s
+      retries: 3
+      start_period: 120s
+
+  # Production Nginx configuration
+  nginx:
+    # Enable resource limits in production
+    deploy:
+      resources:
+        limits:
+          memory: ${NGINX_MEMORY_LIMIT:-256M}
+          cpus: '${NGINX_CPU_LIMIT:-0.5}'
+        reservations:
+          memory: ${NGINX_MEMORY_RESERVATION:-128M}
+          cpus: '${NGINX_CPU_RESERVATION:-0.25}'
+      restart_policy:
+        condition: unless-stopped
+        delay: 5s
+        max_attempts: 3
+    # Production health checks
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health/"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+# Production volume configuration with bind mounts for persistence
+volumes:
+  postgres_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${POSTGRES_DATA_PATH:-./data/postgres}
+  qdrant_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${QDRANT_DATA_PATH:-./data/qdrant}
+  redis_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${REDIS_DATA_PATH:-./data/redis}
+  app_logs:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${APP_LOGS_PATH:-./logs}
+  nginx_logs:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${NGINX_LOGS_PATH:-./logs/nginx}
+
+# Production networking with security
+networks:
+  frontend:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: ${FRONTEND_SUBNET:-172.20.0.0/16}
+  backend:
+    driver: bridge
+    internal: true  # Backend network is internal-only in production
+    ipam:
+      config:
+        - subnet: ${BACKEND_SUBNET:-172.21.0.0/16}

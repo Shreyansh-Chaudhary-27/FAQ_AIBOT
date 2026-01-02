@@ -1,0 +1,90 @@
+# Docker Compose Override for Development
+# This file is automatically loaded by docker-compose and provides development-specific overrides
+# For production, use: docker-compose -f docker-compose.yml up
+
+services:
+  # Development overrides for PostgreSQL
+  db:
+    ports:
+      - "5432:5432"  # Expose port for development access
+    environment:
+      POSTGRES_DB: faq_development
+      POSTGRES_USER: faq_dev_user
+      POSTGRES_PASSWORD: dev_password
+    # Remove resource limits for development
+    deploy: {}
+
+  # Development overrides for Qdrant
+  qdrant:
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    environment:
+      QDRANT__LOG_LEVEL: DEBUG
+    # Remove resource limits for development
+    deploy: {}
+
+  # Development overrides for Redis
+  redis:
+    ports:
+      - "6379:6379"
+    # Remove resource limits for development
+    deploy: {}
+
+  # Development overrides for Django app
+  app:
+    build:
+      target: development  # Use development stage from Dockerfile
+    environment:
+      DJANGO_ENV: development
+      DEBUG: "True"
+      SECRET_KEY: "dev-secret-key-not-for-production"
+      ALLOWED_HOSTS: "*"
+      DB_NAME: faq_development
+      DB_USER: faq_dev_user
+      DB_PASSWORD: dev_password
+      SECURE_SSL_REDIRECT: "False"
+      CSRF_TRUSTED_ORIGINS: "http://localhost:8000,http://127.0.0.1:8000"
+    volumes:
+      # Mount source code for development hot-reloading
+      - .:/app
+      - static_files:/app/staticfiles
+      - media_files:/app/mediafiles
+      - app_logs:/app/logs
+    ports:
+      - "8000:8000"
+    # Remove resource limits for development
+    deploy: {}
+    # Simplified dependencies for faster development startup
+    depends_on:
+      - db
+      - qdrant
+      - redis
+
+  # Development overrides for Nginx
+  nginx:
+    ports:
+      - "80:80"
+    # Remove resource limits for development
+    deploy: {}
+
+# Development volume overrides (use Docker volumes instead of bind mounts)
+volumes:
+  postgres_data:
+    driver: local
+  qdrant_data:
+    driver: local
+  redis_data:
+    driver: local
+  app_logs:
+    driver: local
+  nginx_logs:
+    driver: local
+
+# Simplified networking for development
+networks:
+  frontend:
+    driver: bridge
+  backend:
+    driver: bridge
+    internal: false  # Allow external access in development
