@@ -87,6 +87,9 @@ analytics_data/
 performance_data/
 feedback_data/
 debug_logs/
+data/
+backups/
+logs/
 
 # Test files and scripts
 test_*.py
@@ -102,3 +105,19 @@ FAQ.docx
 *.log
 admin_security.log
 debug_*.log
+
+# Kiro specs and configuration (not needed in production)
+.kiro/
+
+# Deployment scripts and configs (not needed inside container)
+scripts/
+config/
+nginx/
+postgres/
+redis/
+qdrant/
+
+# Alternative requirements files (only one will be used)
+requirements.txt
+requirements-production.txt
+# Keep requirements-render.txt for the optimized builds

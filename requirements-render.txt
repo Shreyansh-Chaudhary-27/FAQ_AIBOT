@@ -1,0 +1,38 @@
+# Minimal requirements for Render deployment
+# Only essential packages to reduce build time and potential conflicts
+
+# Django core
+Django==5.2.8
+gunicorn==23.0.0
+whitenoise==6.9.0
+
+# Database
+psycopg2-binary==2.9.10
+dj-database-url==2.3.0
+
+# Environment
+python-dotenv==1.2.1
+
+# Django extensions (essential only)
+django-simple-captcha==0.6.3
+djangorestframework==3.14.0
+
+# AI/ML (core packages)
+google-generativeai==0.8.6
+sentence-transformers==5.2.0
+numpy==2.4.0
+
+# Vector database
+qdrant-client==1.16.2
+
+# Security
+cryptography==46.0.3
+
+# Utilities
+Pillow==11.1.0
+requests==2.32.3
+
+# Core dependencies
+asgiref==3.8.1
+sqlparse==0.5.3
+tzdata==2025.1

@@ -19,7 +19,7 @@ SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-z@r=*#4*)znd(&xd%*pbok1=1o
 DEBUG = True
 
 ALLOWED_HOSTS = [
-    'aibot-sxc2.onrender.com',
+    'faq-aibot.onrender.com',
     'localhost',
     '127.0.0.1',
     'testserver',
@@ -76,7 +76,7 @@ LOGGING = {
 
 # CSRF trusted origins for development
 CSRF_TRUSTED_ORIGINS = [
-    'https://aibot-sxc2.onrender.com',
+    'https://faq-aibot.onrender.com',
 ]
 
 # Development-specific settings

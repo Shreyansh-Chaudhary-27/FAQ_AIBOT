@@ -20,10 +20,10 @@ RUN apt-get update && apt-get install -y \
 RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
-# Copy requirements and install Python dependencies
-COPY requirements.txt .
+# Copy clean requirements file (Linux-compatible, no Windows packages)
+COPY requirements-production.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+    pip install --no-cache-dir -r requirements-production.txt
 
 # Production stage - minimal runtime image
 FROM python:3.11-slim as production
