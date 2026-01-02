@@ -57,8 +57,7 @@ README.md
 docs/
 
 # Docker files (don't copy into container)
-Dockerfile*
-docker-compose*.yml
+# Keep only the unified Dockerfile
 .dockerignore
 
 # Temporary files
@@ -118,6 +117,4 @@ redis/
 qdrant/
 
 # Alternative requirements files (only one will be used)
-requirements.txt
-requirements-production.txt
-# Keep requirements-render.txt for the optimized builds
+# Keep requirements.txt as the unified file
