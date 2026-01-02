@@ -1,10 +1,10 @@
 """
 Production Django settings for faqbackend project.
 This module contains production-optimized settings with environment variable validation,
-PostgreSQL database configuration, security settings, and WhiteNoise static file serving.
+Pinecone vector database configuration, security settings, and WhiteNoise static file serving.
 
 Requirements addressed:
-- 2.1: PostgreSQL database backend
+- 2.1: Pinecone vector database backend (no traditional database)
 - 2.2: WhiteNoise static file serving
 - 2.3: Production error handling (DEBUG=False)
 - 2.4: Environment variable validation
@@ -102,18 +102,8 @@ def validate_environment():
     required_vars = [
         ('SECRET_KEY', str),
         ('GEMINI_API_KEY', str),
+        ('PINECONE_API_KEY', str),  # Required for vector storage
     ]
-    
-    # Database validation - only if using PostgreSQL
-    use_sqlite = get_env_variable('USE_SQLITE', default=False, required=False, var_type=bool)
-    database_url = get_env_variable('DATABASE_URL', required=False)
-    
-    if not use_sqlite and not database_url:
-        required_vars.extend([
-            ('DB_NAME', str),
-            ('DB_USER', str),
-            ('DB_PASSWORD', str),
-        ])
     
     errors = []
     for var_name, var_type in required_vars:
@@ -157,45 +147,20 @@ SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_AGE = 3600  # 1 hour
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True
 
-# Requirements 2.1, 3.1, 3.2: Database configuration with PostgreSQL and SQLite support
-USE_SQLITE = get_env_variable('USE_SQLITE', default=False, required=False, var_type=bool)
+# Requirements 2.1: No traditional database - using Pinecone for vector storage only
+# Django still needs a database for sessions, admin, etc. Use SQLite for minimal overhead
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'app_data.sqlite3',  # Minimal app data only
+        'OPTIONS': {
+            'timeout': 20,
+            'check_same_thread': False,
+        },
+    }
+}
 
-if USE_SQLITE:
-    # SQLite configuration for cloud deployments (Render, etc.)
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / 'db.sqlite3',
-            'OPTIONS': {
-                'timeout': 20,
-                'check_same_thread': False,
-            },
-        }
-    }
-    print("Using SQLite database for production deployment")
-else:
-    # PostgreSQL configuration with connection pooling
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.postgresql',
-            'NAME': get_env_variable('DB_NAME'),
-            'USER': get_env_variable('DB_USER'),
-            'PASSWORD': get_env_variable('DB_PASSWORD'),
-            'HOST': get_env_variable('DB_HOST', default='localhost'),
-            'PORT': get_env_variable('DB_PORT', default=5432, required=False, var_type=int),
-            'CONN_MAX_AGE': get_env_variable('DB_CONN_MAX_AGE', default=600, required=False, var_type=int),  # 10 minutes
-        }
-    }
-    
-    # Alternative: Support DATABASE_URL for easier deployment (Heroku-style)
-    DATABASE_URL = get_env_variable('DATABASE_URL', required=False)
-    if DATABASE_URL:
-        import dj_database_url
-        DATABASES['default'] = dj_database_url.parse(DATABASE_URL)
-        # Add connection pooling options
-        DATABASES['default']['CONN_MAX_AGE'] = 600
-    
-    print("Using PostgreSQL database for production deployment")
+print("Using SQLite for minimal Django app data, Pinecone for vector storage")
 
 # Requirements 2.2: WhiteNoise static file serving configuration
 STATIC_ROOT = BASE_DIR / 'staticfiles'
@@ -219,15 +184,15 @@ RAG_LOCAL_EMBEDDING_MODEL = get_env_variable('RAG_LOCAL_EMBEDDING_MODEL', defaul
 RAG_VECTOR_DIMENSION = get_env_variable('RAG_VECTOR_DIMENSION', default=384, required=False, var_type=int)
 RAG_SIMILARITY_THRESHOLD = get_env_variable('RAG_SIMILARITY_THRESHOLD', default=0.5, required=False, var_type=float)
 
-# Vector Store Configuration - Use Qdrant in production
-RAG_VECTOR_STORE_TYPE = get_env_variable('RAG_VECTOR_STORE_TYPE', default='qdrant', required=False)
+# Vector Store Configuration - Use Pinecone in production
+RAG_VECTOR_STORE_TYPE = get_env_variable('RAG_VECTOR_STORE_TYPE', default='pinecone', required=False)
 
-# Vector Database Configuration (Qdrant)
-QDRANT_HOST = get_env_variable('QDRANT_HOST', default='qdrant', required=False)
-QDRANT_PORT = get_env_variable('QDRANT_PORT', default=6333, required=False, var_type=int)
-QDRANT_COLLECTION_NAME = get_env_variable('QDRANT_COLLECTION_NAME', default='faq_embeddings', required=False)
-QDRANT_TIMEOUT = get_env_variable('QDRANT_TIMEOUT', default=30, required=False, var_type=int)
-VECTOR_DB_URL = get_env_variable('VECTOR_DB_URL', required=False)
+# Pinecone Configuration
+PINECONE_API_KEY = get_env_variable('PINECONE_API_KEY')
+PINECONE_INDEX_NAME = get_env_variable('PINECONE_INDEX_NAME', default='faq-embeddings', required=False)
+PINECONE_ENVIRONMENT = get_env_variable('PINECONE_ENVIRONMENT', default='us-east-1-aws', required=False)
+PINECONE_METRIC = get_env_variable('PINECONE_METRIC', default='cosine', required=False)
+PINECONE_TIMEOUT = get_env_variable('PINECONE_TIMEOUT', default=30, required=False, var_type=int)
 
 # Cache Configuration (Redis)
 REDIS_URL = get_env_variable('REDIS_URL', required=False)
@@ -368,7 +333,8 @@ PRODUCTION_SETTINGS_MARKER = "PRODUCTION_SETTINGS_ACTIVE"
 
 # Environment validation summary
 print("Production settings loaded successfully:")
-print(f"- Database: {'SQLite' if USE_SQLITE else 'PostgreSQL'} ({'URL-based' if not USE_SQLITE and 'DATABASE_URL' in locals() and DATABASE_URL else 'individual settings' if not USE_SQLITE else 'file-based'})")
+print(f"- Database: SQLite (minimal app data only)")
+print(f"- Vector Storage: Pinecone ({PINECONE_INDEX_NAME})")
 print(f"- Static files: WhiteNoise with compression")
 print(f"- Cache: {'Redis' if 'REDIS_URL' in locals() and REDIS_URL else 'Database'}")
 print(f"- Debug mode: {DEBUG}")

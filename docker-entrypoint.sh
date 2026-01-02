@@ -20,64 +20,10 @@ error() {
     echo -e "${RED}[$(date +'%Y-%m-%d %H:%M:%S')] ERROR: $1${NC}"
 }
 
-# Function to wait for database
+# Function to wait for database (REMOVED - using Pinecone only)
 wait_for_db() {
-    # Skip database waiting if using SQLite
-    if [ "$USE_SQLITE" = "true" ] || [ "$USE_SQLITE" = "True" ] || [ "$USE_SQLITE" = "1" ]; then
-        log "Using SQLite database - skipping database connection wait"
-        return 0
-    fi
-    
-    log "Waiting for PostgreSQL database connection..."
-    
-    # Extract database connection details from DATABASE_URL or individual env vars
-    if [ -n "$DATABASE_URL" ]; then
-        # Parse DATABASE_URL (format: postgres://user:pass@host:port/dbname)
-        DB_HOST=$(echo $DATABASE_URL | sed -n 's/.*@\([^:]*\):.*/\1/p')
-        DB_PORT=$(echo $DATABASE_URL | sed -n 's/.*:\([0-9]*\)\/.*/\1/p')
-    else
-        DB_HOST=${DB_HOST:-localhost}
-        DB_PORT=${DB_PORT:-5432}
-    fi
-    
-    # Wait for database to be ready
-    until python -c "
-import psycopg2
-import sys
-import os
-from urllib.parse import urlparse
-
-try:
-    if os.environ.get('DATABASE_URL'):
-        # Parse DATABASE_URL
-        url = urlparse(os.environ['DATABASE_URL'])
-        conn = psycopg2.connect(
-            host=url.hostname,
-            port=url.port,
-            user=url.username,
-            password=url.password,
-            database=url.path[1:]
-        )
-    else:
-        # Use individual environment variables
-        conn = psycopg2.connect(
-            host=os.environ.get('DB_HOST', 'localhost'),
-            port=os.environ.get('DB_PORT', '5432'),
-            user=os.environ.get('DB_USER', 'postgres'),
-            password=os.environ.get('DB_PASSWORD', ''),
-            database=os.environ.get('DB_NAME', 'postgres')
-        )
-    conn.close()
-    print('Database connection successful')
-except Exception as e:
-    print(f'Database connection failed: {e}')
-    sys.exit(1)
-"; do
-        warn "Database is unavailable - sleeping for 2 seconds"
-        sleep 2
-    done
-    
-    log "PostgreSQL database is ready!"
+    log "Using Pinecone vector database - no database connection wait needed"
+    return 0
 }
 
 # Function to run Django migrations
@@ -135,20 +81,26 @@ init_rag_system() {
     fi
 }
 
-# Function to initialize Qdrant vector database
-init_qdrant() {
-    log "Initializing Qdrant vector database..."
-    if python manage.py init_qdrant --health-check-only > /dev/null 2>&1; then
-        log "Qdrant health check passed"
-        
-        # Initialize collection if needed
-        if python manage.py init_qdrant > /dev/null 2>&1; then
-            log "Qdrant initialization completed successfully"
-        else
-            warn "Qdrant initialization failed, continuing anyway"
-        fi
+# Function to initialize Pinecone vector database
+init_pinecone() {
+    log "Initializing Pinecone vector database..."
+    if python manage.py shell -c "
+from faq.rag.components.vector_store.vector_store_factory import VectorStoreFactory
+try:
+    store = VectorStoreFactory.create_production_store()
+    health = store.health_check()
+    print(f'Pinecone health check: {health.get(\"status\", \"unknown\")}')
+    if health.get('status') == 'healthy':
+        print('Pinecone connection successful')
+    else:
+        print('Pinecone connection degraded but functional')
+except Exception as e:
+    print(f'Pinecone initialization failed: {e}')
+    raise
+" > /dev/null 2>&1; then
+        log "Pinecone vector database initialized successfully"
     else
-        warn "Qdrant health check failed, continuing anyway"
+        warn "Pinecone initialization failed, continuing anyway"
     fi
 }
 
@@ -180,20 +132,19 @@ main() {
         exit 1
     fi
     
-    # Wait for database if not in development mode and not using SQLite
-    if [ "$DJANGO_SETTINGS_MODULE" != "faqbackend.settings.development" ]; then
-        if [ "$USE_SQLITE" != "true" ] && [ "$USE_SQLITE" != "True" ] && [ "$USE_SQLITE" != "1" ]; then
-            wait_for_db
-        else
-            log "Using SQLite database - skipping database connection wait"
-        fi
+    if [ -z "$PINECONE_API_KEY" ]; then
+        error "PINECONE_API_KEY environment variable is required"
+        exit 1
     fi
+    
+    # No database waiting needed - using Pinecone vector database
+    log "Using Pinecone vector database - no external database dependencies"
     
     # Run initialization steps
     run_migrations
     collect_static
     create_superuser
-    init_qdrant
+    init_pinecone
     init_rag_system
     
     log "Initialization complete, starting application..."
