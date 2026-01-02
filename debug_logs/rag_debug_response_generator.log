@@ -192,3 +192,5 @@
 2026-01-02 15:30:24,192 - INFO - Response generated | length=88 | time=0.77s
 2026-01-02 15:31:47,919 - INFO - Generating response for query_id=67967a22-973f-491c-8b93-80f512265334 | question_len=32 | context_len=1
 2026-01-02 15:31:49,184 - INFO - Response generated | length=153 | time=1.27s
+2026-01-02 17:17:45,677 - INFO - Generating response for query_id=da0f8fe5-73fb-4ade-9dc8-a51f5f1ef606 | question_len=32 | context_len=1
+2026-01-02 17:17:47,250 - INFO - Response generated | length=153 | time=1.56s

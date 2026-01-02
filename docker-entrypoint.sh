@@ -22,7 +22,13 @@ error() {
 
 # Function to wait for database
 wait_for_db() {
-    log "Waiting for database connection..."
+    # Skip database waiting if using SQLite
+    if [ "$USE_SQLITE" = "true" ] || [ "$USE_SQLITE" = "True" ] || [ "$USE_SQLITE" = "1" ]; then
+        log "Using SQLite database - skipping database connection wait"
+        return 0
+    fi
+    
+    log "Waiting for PostgreSQL database connection..."
     
     # Extract database connection details from DATABASE_URL or individual env vars
     if [ -n "$DATABASE_URL" ]; then
@@ -71,7 +77,7 @@ except Exception as e:
         sleep 2
     done
     
-    log "Database is ready!"
+    log "PostgreSQL database is ready!"
 }
 
 # Function to run Django migrations
@@ -174,9 +180,13 @@ main() {
         exit 1
     fi
     
-    # Wait for database if not in development mode
+    # Wait for database if not in development mode and not using SQLite
     if [ "$DJANGO_SETTINGS_MODULE" != "faqbackend.settings.development" ]; then
-        wait_for_db
+        if [ "$USE_SQLITE" != "true" ] && [ "$USE_SQLITE" != "True" ] && [ "$USE_SQLITE" != "1" ]; then
+            wait_for_db
+        else
+            log "Using SQLite database - skipping database connection wait"
+        fi
     fi
     
     # Run initialization steps

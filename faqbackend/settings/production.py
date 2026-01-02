@@ -104,19 +104,16 @@ def validate_environment():
         ('GEMINI_API_KEY', str),
     ]
     
-    # Database validation - either DATABASE_URL or individual DB settings
+    # Database validation - only if using PostgreSQL
+    use_sqlite = get_env_variable('USE_SQLITE', default=False, required=False, var_type=bool)
     database_url = get_env_variable('DATABASE_URL', required=False)
-    if not database_url:
+    
+    if not use_sqlite and not database_url:
         required_vars.extend([
             ('DB_NAME', str),
             ('DB_USER', str),
             ('DB_PASSWORD', str),
         ])
-    
-    # Allowed hosts validation - not required since we provide defaults
-    # allowed_hosts = get_env_variable('ALLOWED_HOSTS', required=False, var_type=list)
-    # if not allowed_hosts:
-    #     required_vars.append(('ALLOWED_HOSTS', list))
     
     errors = []
     for var_name, var_type in required_vars:
@@ -160,26 +157,45 @@ SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_AGE = 3600  # 1 hour
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True
 
-# Requirements 2.1, 3.1, 3.2: PostgreSQL database with connection pooling
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': get_env_variable('DB_NAME'),
-        'USER': get_env_variable('DB_USER'),
-        'PASSWORD': get_env_variable('DB_PASSWORD'),
-        'HOST': get_env_variable('DB_HOST', default='localhost'),
-        'PORT': get_env_variable('DB_PORT', default=5432, required=False, var_type=int),
-        'CONN_MAX_AGE': get_env_variable('DB_CONN_MAX_AGE', default=600, required=False, var_type=int),  # 10 minutes
-    }
-}
+# Requirements 2.1, 3.1, 3.2: Database configuration with PostgreSQL and SQLite support
+USE_SQLITE = get_env_variable('USE_SQLITE', default=False, required=False, var_type=bool)
 
-# Alternative: Support DATABASE_URL for easier deployment (Heroku-style)
-DATABASE_URL = get_env_variable('DATABASE_URL', required=False)
-if DATABASE_URL:
-    import dj_database_url
-    DATABASES['default'] = dj_database_url.parse(DATABASE_URL)
-    # Add connection pooling options
-    DATABASES['default']['CONN_MAX_AGE'] = 600
+if USE_SQLITE:
+    # SQLite configuration for cloud deployments (Render, etc.)
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+            'OPTIONS': {
+                'timeout': 20,
+                'check_same_thread': False,
+            },
+        }
+    }
+    print("Using SQLite database for production deployment")
+else:
+    # PostgreSQL configuration with connection pooling
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': get_env_variable('DB_NAME'),
+            'USER': get_env_variable('DB_USER'),
+            'PASSWORD': get_env_variable('DB_PASSWORD'),
+            'HOST': get_env_variable('DB_HOST', default='localhost'),
+            'PORT': get_env_variable('DB_PORT', default=5432, required=False, var_type=int),
+            'CONN_MAX_AGE': get_env_variable('DB_CONN_MAX_AGE', default=600, required=False, var_type=int),  # 10 minutes
+        }
+    }
+    
+    # Alternative: Support DATABASE_URL for easier deployment (Heroku-style)
+    DATABASE_URL = get_env_variable('DATABASE_URL', required=False)
+    if DATABASE_URL:
+        import dj_database_url
+        DATABASES['default'] = dj_database_url.parse(DATABASE_URL)
+        # Add connection pooling options
+        DATABASES['default']['CONN_MAX_AGE'] = 600
+    
+    print("Using PostgreSQL database for production deployment")
 
 # Requirements 2.2: WhiteNoise static file serving configuration
 STATIC_ROOT = BASE_DIR / 'staticfiles'
@@ -352,7 +368,7 @@ PRODUCTION_SETTINGS_MARKER = "PRODUCTION_SETTINGS_ACTIVE"
 
 # Environment validation summary
 print("Production settings loaded successfully:")
-print(f"- Database: PostgreSQL ({'URL-based' if 'DATABASE_URL' in locals() and DATABASE_URL else 'individual settings'})")
+print(f"- Database: {'SQLite' if USE_SQLITE else 'PostgreSQL'} ({'URL-based' if not USE_SQLITE and 'DATABASE_URL' in locals() and DATABASE_URL else 'individual settings' if not USE_SQLITE else 'file-based'})")
 print(f"- Static files: WhiteNoise with compression")
 print(f"- Cache: {'Redis' if 'REDIS_URL' in locals() and REDIS_URL else 'Database'}")
 print(f"- Debug mode: {DEBUG}")
