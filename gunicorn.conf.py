@@ -10,23 +10,22 @@ import os
 bind = "0.0.0.0:8000"
 backlog = 2048
 
-# Worker processes
-workers = int(os.environ.get("GUNICORN_WORKERS", multiprocessing.cpu_count() * 2 + 1))
+# Worker processes - Optimized for Render's memory constraints
+workers = int(os.environ.get("GUNICORN_WORKERS", 1))  # Use only 1 worker for Render free tier
 worker_class = "sync"
-worker_connections = 1000
-timeout = 30
+worker_connections = 100  # Reduced from 1000
+timeout = 60  # Increased timeout for heavy ML operations
 keepalive = 2
 
-# Restart workers after this many requests, to prevent memory leaks
-max_requests = int(os.environ.get("GUNICORN_MAX_REQUESTS", 1000))
-max_requests_jitter = int(os.environ.get("GUNICORN_MAX_REQUESTS_JITTER", 50))
+# Restart workers more frequently to prevent memory buildup
+max_requests = int(os.environ.get("GUNICORN_MAX_REQUESTS", 100))  # Reduced from 1000
+max_requests_jitter = int(os.environ.get("GUNICORN_MAX_REQUESTS_JITTER", 10))  # Reduced from 50
 
-# Memory management - restart workers if they exceed memory limits
-# This helps prevent OOM kills in production
-worker_memory_limit = int(os.environ.get("GUNICORN_WORKER_MEMORY_LIMIT", 512 * 1024 * 1024))  # 512MB default
+# Memory management - Lower limits for Render
+worker_memory_limit = int(os.environ.get("GUNICORN_WORKER_MEMORY_LIMIT", 256 * 1024 * 1024))  # 256MB for Render
 
-# Preload application for better performance
-preload_app = True
+# Disable preload_app to reduce memory usage during startup
+preload_app = False  # Changed from True to reduce startup memory
 
 # Security
 user = None  # Run as the user specified in Dockerfile (django)

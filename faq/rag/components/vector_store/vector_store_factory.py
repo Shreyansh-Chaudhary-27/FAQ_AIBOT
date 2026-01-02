@@ -3,6 +3,7 @@ Vector Store Factory
 
 Factory for creating vector store instances based on configuration.
 Supports local (pickle-based), Qdrant, and Pinecone vector stores with fallback mechanisms.
+Uses lazy loading to avoid memory issues during startup.
 """
 
 import logging
@@ -12,10 +13,20 @@ from faq.rag.interfaces.base import VectorStoreInterface
 from faq.rag.config.settings import rag_config
 from .vector_store import VectorStore
 from .qdrant_vector_store import QdrantVectorStore, QdrantVectorStoreError, QDRANT_AVAILABLE
-from .pinecone_vector_store import PineconeVectorStore, PineconeVectorStoreError, PINECONE_AVAILABLE
-
 
 logger = logging.getLogger(__name__)
+
+# Lazy import for Pinecone to avoid startup memory issues
+def _get_pinecone_availability():
+    """Check if Pinecone is available without importing it."""
+    try:
+        import importlib.util
+        spec = importlib.util.find_spec("pinecone")
+        return spec is not None
+    except Exception:
+        return False
+
+PINECONE_AVAILABLE = _get_pinecone_availability()
 
 
 class VectorStoreFactory:
@@ -149,6 +160,16 @@ class VectorStoreFactory:
                     "pinecone-client not available and fallback disabled. "
                     "Install with: pip install pinecone-client"
                 )
+        
+        # Lazy import Pinecone classes
+        try:
+            from .pinecone_vector_store import PineconeVectorStore, PineconeVectorStoreError
+        except ImportError as e:
+            if fallback_enabled:
+                logger.warning(f"Failed to import Pinecone classes: {e}, falling back to local vector store")
+                return VectorStoreFactory._create_local_store(**kwargs)
+            else:
+                raise ValueError(f"Failed to import Pinecone classes: {e}")
         
         config = rag_config.get_vector_config()
         

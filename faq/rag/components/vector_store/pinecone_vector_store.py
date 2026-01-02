@@ -16,13 +16,41 @@ from faq.rag.interfaces.base import VectorStoreInterface, FAQEntry, SimilarityMa
 
 logger = logging.getLogger(__name__)
 
-# Check if Pinecone is available
+# Lazy import Pinecone to avoid memory issues during startup
+PINECONE_AVAILABLE = False
+_pinecone_client = None
+_serverless_spec = None
+
+def _import_pinecone():
+    """Lazy import Pinecone modules to avoid startup memory issues."""
+    global PINECONE_AVAILABLE, _pinecone_client, _serverless_spec
+    
+    if _pinecone_client is not None:
+        return _pinecone_client, _serverless_spec
+    
+    try:
+        from pinecone import Pinecone, ServerlessSpec
+        _pinecone_client = Pinecone
+        _serverless_spec = ServerlessSpec
+        PINECONE_AVAILABLE = True
+        logger.info("Pinecone client imported successfully")
+        return _pinecone_client, _serverless_spec
+    except ImportError as e:
+        logger.warning(f"pinecone-client not available: {e}. Install with: pip install pinecone-client")
+        PINECONE_AVAILABLE = False
+        return None, None
+    except Exception as e:
+        logger.error(f"Failed to import Pinecone: {e}")
+        PINECONE_AVAILABLE = False
+        return None, None
+
+# Check availability without importing
 try:
-    from pinecone import Pinecone, ServerlessSpec
-    PINECONE_AVAILABLE = True
-except ImportError:
+    import importlib.util
+    spec = importlib.util.find_spec("pinecone")
+    PINECONE_AVAILABLE = spec is not None
+except Exception:
     PINECONE_AVAILABLE = False
-    logger.warning("pinecone-client not available. Install with: pip install pinecone-client")
 
 
 class PineconeVectorStoreError(Exception):
@@ -58,7 +86,10 @@ class PineconeVectorStore(VectorStoreInterface):
             timeout: Request timeout in seconds
             fallback_store: Optional fallback store for error cases
         """
-        if not PINECONE_AVAILABLE:
+        # Lazy import Pinecone
+        Pinecone, ServerlessSpec = _import_pinecone()
+        
+        if not PINECONE_AVAILABLE or Pinecone is None:
             raise PineconeVectorStoreError(
                 "pinecone-client not available. Install with: pip install pinecone-client"
             )
@@ -70,10 +101,12 @@ class PineconeVectorStore(VectorStoreInterface):
         self.metric = metric
         self.timeout = timeout
         self.fallback_store = fallback_store
+        self._Pinecone = Pinecone
+        self._ServerlessSpec = ServerlessSpec
         
         # Initialize Pinecone client
         try:
-            self.pc = Pinecone(api_key=api_key)
+            self.pc = self._Pinecone(api_key=api_key)
             self._initialize_index()
             logger.info(f"Pinecone vector store initialized - Index: {index_name}")
         except Exception as e:
@@ -99,7 +132,7 @@ class PineconeVectorStore(VectorStoreInterface):
                     name=self.index_name,
                     dimension=self.vector_dimension,
                     metric=self.metric,
-                    spec=ServerlessSpec(
+                    spec=self._ServerlessSpec(
                         cloud='aws',
                         region=self.environment.split('-')[0] + '-' + self.environment.split('-')[1] + '-' + self.environment.split('-')[2]
                     )
